@@ -1,0 +1,40 @@
+reaxpro:
+  fastapi:
+    host: 0.0.0.0
+    port: 8081
+    schemas: 'osp.models.multiscale.co_pt111_meso:COPt111MesoscaleModel  | osp.models.catalytic.co_catalyticfoam:COCatalyticFOAMModel | osp.models.ams.energy_landscape_refinement:EnergyLandscapeRefinement |  osp.models.zacros.co_pyzacros:COpyZacrosModel'
+  minio:
+    user: rootname
+    password: rootname123
+    endpoint: 172.17.0.3:9000
+  broker:
+    type: redis
+    host: 172.17.0.2
+    port: 6379
+    db: 3
+  head:
+    name: simphony-workflows
+    mapping: 'emmo.ContinuumCalculation:simphony-catalyticfoam|emmo.AtomisticCalculation:simphony-ams|emmo.MesoscopicCalculation:simphony-zacros'
+  workers:
+    - name: simphony-catalyticfoam
+      wrapper: osp.wrappers.simcatalyticfoam.simcatalyticfoam:SimCatalyticFoamSession
+    - name: simphony-ams
+      wrapper: osp.wrappers.osp.wrappers.simams.simams_session:SimamsSession
+      extra_env:
+        AMSHOME: /data/volume_1/Software/ams2022
+        ADFHOME: /data/volume_1/Software/ams2022
+        ADFBIN: /data/volume_1/Software/ams2022/bin
+        AMSBIN: /data/volume_1/Software/ams2022/bin
+        AMSRESOURCES: /data/volume_1/Software/ams2022/atomicdata
+        ADFRESOURCES: /data/volume_1/Software/ams2022/atomicdata
+        SCMLICENSE: /data/volume_1/Software/ams2022/license.txt
+    - name: simphony-zacros
+      wrapper: osp.wrappers.simzacros.simzacros_session:SimzacrosSession
+      extra_env:
+        AMSHOME: /data/volume_1/Software/ams2022
+        ADFHOME: /data/volume_1/Software/ams2022
+        ADFBIN: /data/volume_1/Software/ams2022/bin
+        AMSBIN: /data/volume_1/Software/ams2022/bin
+        AMSRESOURCES: /data/volume_1/Software/ams2022/atomicdata
+        ADFRESOURCES: /data/volume_1/Software/ams2022/atomicdata
+        SCMLICENSE: /data/volume_1/Software/ams2022/license.txt

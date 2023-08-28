@@ -1,0 +1,139 @@
+version: "3"
+
+services:
+  fastapi:
+    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:${BUILD_VERSION:-latest}-${DOCKER_BUILD_TARGET:-develop}"
+    build:
+      context: "."
+      dockerfile: Dockerfile.api
+      target: "${DOCKER_BUILD_TARGET:-develop}"
+      args:
+        - INSTALL_SLURM=$INSTALL_SLURM
+        - SLURM_VERSION=$SLURM_VERSION
+        - WRAPPER_DEPS_INSTALL=$WRAPPER_DEPS_INSTALL
+        - WRAPPER_DEPS_EXTRA=$WRAPPER_DEPS_EXTRA
+    ports:
+      - "${REAXPRO_FASTAPI_PORT:-8080}:${REAXPRO_FASTAPI_PORT:-8080}"
+    environment:
+      REAXPRO_REDIS_TYPE: redis
+      REAXPRO_REDIS_HOST: redis
+      REAXPRO_REDIS_PORT: 6379
+      REAXPRO_REDIS_DB: 3
+      REAXPRO_REDIS_TEST_DB: 9
+      REAXPRO_AUTHENTICATION_DEPENDENCIES: ${AUTHENTICATION_DEPENDENCIES}
+      REAXPRO_SCHEMAS: ${REAXPRO_SCHEMAS}
+      REAXPRO_MINIO_ENDPOINT: minio:9000
+      REAXPRO_MINIO_USER: ${REAXPRO_MINIO_USER}
+      REAXPRO_MINIO_PASSWORD: ${REAXPRO_MINIO_PASSWORD}
+      REAXPRO_FASTAPI_HOST: ${REAXPRO_FASTAPI_HOST:-'0.0.0.0'}
+      REAXPRO_FASTAPI_PORT: ${REAXPRO_FASTAPI_PORT:-8080}
+      PYTHON_BIN: ${PYTHON_BIN:-python3}
+      APP_MODE: server
+    volumes:
+      - ./:/app:rw
+    entrypoint:
+      - /bin/bash
+    tty: True
+    depends_on:
+      - redis
+      - minio
+    networks:
+      - reaxpro
+
+  headworker:
+    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:${BUILD_VERSION:-latest}-${DOCKER_BUILD_TARGET:-develop}"
+    build:
+      context: "."
+      dockerfile: Dockerfile.api
+      target: "${DOCKER_BUILD_TARGET:-develop}"
+      args:
+        - WRAPPER_DEPS_INSTALL=$WRAPPER_DEPS_INSTALL
+        - WRAPPER_DEPS_EXTRA=$WRAPPER_DEPS_EXTRA
+        - INSTALL_SLURM=$INSTALL_SLURM
+        - SLURM_VERSION=$SLURM_VERSION
+    environment:
+      REAXPRO_WORKER_NAME: simphony-workflows
+      REAXPRO_REDIS_TYPE: redis
+      REAXPRO_REDIS_HOST: redis
+      REAXPRO_REDIS_PORT: 6379
+      REAXPRO_REDIS_DB: 3
+      REAXPRO_REDIS_TEST_DB: 9
+      REAXPRO_WORKER_MAPPING: ${REAXPRO_WORKER_MAPPING}
+      REAXPRO_MINIO_ENDPOINT: minio:9000
+      REAXPRO_MINIO_USER: ${REAXPRO_MINIO_USER}
+      REAXPRO_MINIO_PASSWORD: ${REAXPRO_MINIO_PASSWORD}
+      REAXPRO_WORKER_CONCURRENCY: ${REAXPRO_WORKER_CONCURRENCY:-5}
+      PYTHON_BIN: ${PYTHON_BIN:-python3}
+      APP_MODE: worker
+    volumes:
+      - ./:/app:rw
+    entrypoint:
+      - /bin/bash
+    tty: True
+    depends_on:
+      - redis
+      - minio
+    networks:
+      - reaxpro
+
+  catalyticfoam:
+    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:catalyticfoam-${BUILD_VERSION:-latest}-${DOCKER_BUILD_TARGET:-develop}"
+    build:
+      context: "."
+      target: "${DOCKER_BUILD_TARGET:-develop}"
+      dockerfile: Dockerfile.catalyticfoam
+      args:
+        - BASE_IMAGE=$BASE_IMAGE
+        - WRAPPER_TAG=$WRAPPER_TAG
+        - SLURM_VERSION=$SLURM_VERSION
+    environment:
+      REAXPRO_WORKER_NAME: simphony-catalyticfoam
+      REAXPRO_WRAPPER_NAME: osp.wrappers.simcatalyticfoam.simcatalyticfoam:SimCatalyticFoamSession
+      REAXPRO_REDIS_TYPE: redis
+      REAXPRO_REDIS_HOST: redis
+      REAXPRO_REDIS_PORT: 6379
+      REAXPRO_REDIS_DB: 3
+      REAXPRO_REDIS_TEST_DB: 9
+      REAXPRO_MINIO_ENDPOINT: minio:9000
+      REAXPRO_MINIO_USER: ${REAXPRO_MINIO_USER}
+      REAXPRO_MINIO_PASSWORD: ${REAXPRO_MINIO_PASSWORD}
+      REAXPRO_WORKER_CONCURRENCY: ${REAXPRO_WORKER_CONCURRENCY:-5}
+      PYTHON_BIN: ${PYTHON_BIN:-python3}
+      APP_MODE: worker
+    volumes:
+      - ./:/app:rw
+    entrypoint:
+      - /bin/bash
+    tty: True
+    depends_on:
+      - redis
+      - minio
+    networks:
+      - reaxpro
+
+  redis:
+    image: redis:latest
+    volumes:
+      - redis-data:/data
+    networks:
+      - reaxpro
+
+  minio:
+    image: quay.io/minio/minio
+    ports:
+      - 9000
+    environment:
+      MINIO_ROOT_USER: ${REAXPRO_MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${REAXPRO_MINIO_PASSWORD}
+    volumes:
+      - minio-data:/data
+    command: server /data
+    networks:
+      - reaxpro
+
+volumes:
+  redis-data:
+  minio-data:
+
+networks:
+  reaxpro:

@@ -1,0 +1,53 @@
+version: "3"
+
+services:
+  reaxpro:
+    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:${BUILD_VERSION:-latest}-singularity-${DOCKER_BUILD_TARGET:-develop}"
+    build:
+      context: "."
+      dockerfile: Dockerfile.singularity
+      target: "${DOCKER_BUILD_TARGET:-develop}"
+      args:
+        - BASE_IMAGE=$BASE_IMAGE
+        - WRAPPER_TAG=$WRAPPER_TAG
+        - INSTALL_SLURM=$INSTALL_SLURM
+        - SLURM_VERSION=$SLURM_VERSION
+    ports:
+      - "${REAXPRO_FASTAPI_PORT:-8081}:${REAXPRO_FASTAPI_PORT:-8081}"
+    volumes:
+      - ./:/app:rw
+    entrypoint:
+      - /bin/bash
+    tty: True
+    depends_on:
+      - redis
+      - minio
+    networks:
+      - reaxpro
+
+  redis:
+    image: redis:latest
+    volumes:
+      - redis-data:/data
+    networks:
+      - reaxpro
+
+  minio:
+    image: quay.io/minio/minio
+    ports:
+      - 9000
+    environment:
+      MINIO_ROOT_USER: ${REAXPRO_MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${REAXPRO_MINIO_PASSWORD}
+    volumes:
+      - minio-data:/data
+    command: server /data
+    networks:
+      - reaxpro
+
+volumes:
+  redis-data:
+  minio-data:
+
+networks:
+  reaxpro:

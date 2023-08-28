@@ -1,0 +1,51 @@
+ARG WRAPPER_TAG
+ARG BASE_IMAGE
+
+FROM ${BASE_IMAGE}:${WRAPPER_TAG} AS base
+
+ARG SLURM_VERSION
+
+USER root
+RUN apt update
+RUN pip install --upgrade pip
+
+WORKDIR /tmp
+RUN if [ "$INSTALL_SLURM" = "yes" ] ; \
+    then \
+        apt install -y munge && \
+        wget "https://download.schedmd.com/slurm/slurm-${SLURM_VERSION}.tar.bz2" && \
+        tar --bzip -x -f "slurm-${SLURM_VERSION}.tar.bz2" && \
+        cd "slurm-${SLURM_VERSION}" && \
+        ./configure && \
+        make && \
+        make install ; \
+     else \
+        echo 'Slurm will not be installed.' ; \
+    fi
+
+
+WORKDIR /home/openfoam/fastapi-celery
+COPY . ./
+
+########################## development #############################
+FROM base AS develop
+
+USER root
+
+RUN pip install .[tests,pre_commit]
+
+WORKDIR /app
+
+
+########################## production #############################
+FROM base as production
+
+ARG WRAPPER_DEPS
+
+RUN chmod -R 0777 .
+RUN chown -R openfoam:openfoam .
+
+USER openfoam
+RUN pip install .
+
+ENTRYPOINT ["./docker_entrypoint.sh"]

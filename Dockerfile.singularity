@@ -1,0 +1,48 @@
+ARG WRAPPER_TAG
+ARG BASE_IMAGE
+
+FROM ${BASE_IMAGE}:${WRAPPER_TAG} AS base
+
+ARG INSTALL_SLURM
+ARG SLURM_VERSION
+
+USER root
+RUN apt update
+RUN pip install --upgrade pip
+
+WORKDIR /tmp
+RUN if [ "$INSTALL_SLURM" = "yes" ] ; \
+    then \
+        apt install -y munge && \
+        wget "https://download.schedmd.com/slurm/slurm-${SLURM_VERSION}.tar.bz2" && \
+        tar --bzip -x -f "slurm-${SLURM_VERSION}.tar.bz2" && \
+        cd "slurm-${SLURM_VERSION}" && \
+        ./configure && \
+        make && \
+        make install ; \
+     else \
+        echo 'Slurm will not be installed.' ; \
+    fi
+
+WORKDIR /home/openfoam/fastapi-celery
+COPY . ./
+
+########################## production #############################
+FROM base as production
+
+RUN pip install .
+
+WORKDIR /.singularity.d/env/
+RUN touch environment.sh
+RUN echo "export LD_LIBRARY_PATH=\${LD_LIBRARY_PATH}:/home/openfoam/platforms/linux64GccDPInt32Opt/lib/" >> environment.sh
+RUN echo "export PATH=\${PATH}:/home/openfoam/platforms/linux64GccDPInt32Opt/bin/" >> environment.sh
+RUN echo "export OSP_ONTOLOGIES_DIR=/home/openfoam" >> environment.sh
+
+ENTRYPOINT ["/home/openfoam/fastapi-celery/docker_entrypoint.sh"]
+
+########################## development #############################
+FROM base AS develop
+
+RUN pip install .[tests,pre_commit]
+
+WORKDIR /app
