@@ -1,5 +1,7 @@
 # Installation and setup guide
 
+## Run with Docker
+
 ### Docker engine
 
 For using the application provided by this repository, please make sure to install a **Docker**-engine version > `v20.0.0` .
@@ -317,11 +319,17 @@ Simply type:
 
 `docker-compose down`
 
-### Run with singularity
+## Run with singularity/apptainer
 
-Instead of using `Docker`, you may also use [`Singularity`](https://docs.sylabs.io/guides/latest/user-guide/)
+Instead of using `Docker`, you may also use [`Singularity`](https://docs.sylabs.io/guides/latest/user-guide/).
 
-For doing so, please refer to the `singularity`-subdirectory of the [source code repository](https://github.com/simphony/reaxpro-workflow-service/tree/main/singularity) and copy all the included files there.
+The platform has been tested with a singularity/apptainer version `1.1.9`. Make sure that you are using a similar or higher version.
+
+```{Note}
+This setup for singularity/apptainer tool is roughly expecting the default system configuration which has been deployed during installation.
+```
+
+For running the containers, please refer to the `singularity`-subdirectory of the [source code repository](https://github.com/simphony/reaxpro-workflow-service/tree/main/singularity) and copy all the included files there (bash files and environmental files).
 
 Start the platform by adjusting the `.env.example ` by your needs. You will use this env-file for running and managing the platform constantly.
 
