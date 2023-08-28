@@ -8,6 +8,12 @@ version: 2
 sphinx:
   configuration: docs/source/conf.py
 
+# build os
+build:
+  os: ubuntu-22.04
+  tools:
+    python: "3.10"
+
 # Optionally build your docs in additional formats such as PDF
 formats:
   - pdf
@@ -18,3 +24,5 @@ python:
   version: "3.8"
   install:
     - requirements: docs/requirements.txt
+    - method: pip
+      path: .
