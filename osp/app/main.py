@@ -31,6 +31,7 @@ from .dependencies import (
     depends_modellist,
     depends_registry,
     depends_upload,
+    depends_upload_enabled,
     get_app,
     get_appconfig,
     get_dependencies,
@@ -47,6 +48,7 @@ from .models import (
     TaskStatusModel,
     TransformationStatus,
     UploadDataResponse,
+    UploadNotEnabledError,
     task_to_transformation_map,
 )
 
@@ -100,8 +102,11 @@ async def root():
 @app.put("/data/cache", operation_id="createDataset")
 async def upload_data(
     object_key: UUID = Depends(depends_upload),
+    upload_enabled: bool = Depends(depends_upload_enabled),
 ) -> UploadDataResponse:
     """Upload data from internal cache"""
+    if not upload_enabled:
+        raise UploadNotEnabledError("Direct upload to cache is not enabled")
     return UploadDataResponse(id=object_key, last_modified=str(datetime.now()))
 
 
@@ -319,6 +324,17 @@ async def download_error_handler(request, exc):  # pylint: disable=unused-argume
     """Return response based on the MinioDownloadError"""
     # Raise an HTTPException with a 422 status code and the error messages
     return JSONResponse(status_code=422, content="Error while fetching the resource")
+
+
+@app.exception_handler(UploadNotEnabledError)
+async def upload_error_handler(request, exc):  # pylint: disable=unused-argument
+    """Return response based on the MinioDownloadError"""
+    # Raise an HTTPException with a 422 status code and the error messages
+    return JSONResponse(
+        status_code=403,
+        content="""Direct upload to cache is not enabled.
+    Please contact an administrator.""",
+    )
 
 
 # @app.exception_handler(MinioConnectionError)

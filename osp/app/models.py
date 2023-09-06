@@ -172,3 +172,7 @@ class InfoType(str, Enum):
 
     SCHEMA = "Schema"
     EXAMPLE = "Example"
+
+
+class UploadNotEnabledError(Exception):
+    """Upload not permitted since not enabled by admin."""

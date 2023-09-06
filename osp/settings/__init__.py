@@ -57,6 +57,12 @@ class AppConfig(RedisSettings):
         None, description="Resolvable hostname to the outside world."
     )
 
+    enable_upload: Optional[bool] = Field(
+        False,
+        description="""Whether direct data upload into
+        the cache should be enabled or not""",
+    )
+
     class Config:
         """Pydantic config for FastAPI-celery settings"""
 

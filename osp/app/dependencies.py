@@ -119,6 +119,11 @@ def depends_upload(
     return _get_upload(temp.name, uuid, minio_client)
 
 
+def depends_upload_enabled(config: AppConfig = Depends(get_appconfig)) -> bool:
+    """Check whether direct upoad to data cache is enabled or not"""
+    return config.enable_upload
+
+
 def depends_download(
     dataset_name: str = Query(..., title="Cache ID received after the upload."),
     minio_client: Minio = Depends(depends_minio),
