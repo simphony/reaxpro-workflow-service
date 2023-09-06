@@ -66,10 +66,9 @@ def get_models() -> "Dict[str, Callable]":
     }
 
 
-def depends_modellist(
-    registry: "Dict[str, Callable]" = Depends(get_models),
-) -> "List[str]":
+def depends_modellist() -> "List[str]":
     """Get list of model names."""
+    registry = get_models()
     return list(registry.keys())
 
 
@@ -121,16 +120,16 @@ def depends_upload(
 
 
 def depends_download(
-    uuid: str = Query(..., title="Cache ID received after the upload."),
+    dataset_name: str = Query(..., title="Cache ID received after the upload."),
     minio_client: Minio = Depends(depends_minio),
 ) -> HTTPResponse:
     """Return `HTTPResponse` from uuid through minio client via `Depends`."""
-    return _get_download(uuid, minio_client)
+    return _get_download(dataset_name, minio_client)
 
 
 def depends_logs(
-    task_id: str = Query(..., title="task id of the submitted job"),
+    transformation_id: str = Query(..., title="task id of the submitted job"),
     minio_client: Minio = Depends(depends_minio),
 ) -> HTTPResponse:
     """Return `HTTPResponse` from uuid through minio client via `Depends`."""
-    return _get_download(task_id, minio_client)
+    return _get_download(transformation_id, minio_client)

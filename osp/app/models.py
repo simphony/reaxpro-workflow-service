@@ -1,7 +1,7 @@
 """Pydantic Models for FastAPI-celery"""
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -32,12 +32,33 @@ class TaskStatus(str, Enum):
     REVOKED = "REVOKED"
 
 
+class TransformationStatus(str, Enum):
+    """Status of the task."""
+
+    CREATED = "CREATED"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    STOPPED = "STOPPED"
+    RUNNING = "RUNNING"
+
+
+task_to_transformation_map = {
+    TaskStatus.PENDING: TransformationStatus.RUNNING,
+    TaskStatus.SUCCESS: TransformationStatus.COMPLETED,
+    TaskStatus.FAILURE: TransformationStatus.FAILED,
+    TaskStatus.REVOKED: TransformationStatus.STOPPED,
+}
+
+
+UpdateTaskStates = Literal[TransformationStatus.RUNNING, TransformationStatus.STOPPED]
+
+
 class TaskStatusModel(BaseModel):
     """Data model of the task status"""
 
     status: TaskStatus = Field(..., description="Status of the remote task.")
-    state: TaskStatus = Field(..., description="State of the remote task.")
-    task_id: UUID = Field(..., description="UUID of the submitted task.")
+    state: TransformationStatus = Field(..., description="State of the remote task.")
+    id: UUID = Field(..., description="UUID of the submitted task.")
     args: Optional["List[Any]"] = Field(
         ..., description="Arguments passed during the task submission."
     )
@@ -65,8 +86,8 @@ class TaskKillModel(TaskStatusModel):
 class TaskResultModel(BaseModel):
     """Data model of the task result"""
 
-    task_id: UUID = Field(..., description="UUID of the submitted task.")
-    result: Optional[Any] = Field(
+    id: UUID = Field(..., description="UUID of the submitted task.")
+    parameters: Optional[Any] = Field(
         ..., description="Result of the task forwarded by celery-worker."
     )
     traceback: Optional[str] = Field(
@@ -102,9 +123,7 @@ class RegisteredTaskModel(BaseModel):
 class TaskCreateModel(BaseModel):
     """Response of the API when instanciating a data model."""
 
-    cache_id: str = Field(
-        ..., description="UUID of the instanciated data model in the cache"
-    )
+    id: str = Field(..., description="UUID of the instanciated data model in the cache")
 
 
 class RegisteredModels(BaseModel):
@@ -121,18 +140,35 @@ class RegisteredModels(BaseModel):
 class SubmissionBody(BaseModel):
     """Body of the workflow request."""
 
-    cache_id: str = Field(
-        ..., description="UUID of the data to be passed as input to remote worker"
-    )
+    state: UpdateTaskStates
 
-    format: Optional[str] = Field(
+    format: str = Field(
         "turtle", description="Format of the RDF-file to be consumed by the worker."
     )
+
+    class Config:
+        """Pydantic configuration for submission body"""
+
+        schema_extra = {
+            "example": {
+                "state": "RUNNING",
+                "format": "turtle",
+            }
+        }
 
 
 class UploadDataResponse(BaseModel):
     """Body of the data upload response"""
 
-    cache_id: UUID = Field(
+    id: UUID = Field(
         ..., description="UUID of the data which was uploaded to the cache."
     )
+
+    last_modified: str = Field(..., description="created time of the data.")
+
+
+class InfoType(str, Enum):
+    """Types of information to be returned from app"""
+
+    SCHEMA = "Schema"
+    EXAMPLE = "Example"
