@@ -75,7 +75,7 @@ services:
       args:
         - BASE_IMAGE=$BASE_IMAGE
         - WRAPPER_TAG=$WRAPPER_TAG
-        - INSTALL_SLURM=${INSTALL_SLURM:-no}        
+        - INSTALL_SLURM=${INSTALL_SLURM:-no}
         - SLURM_VERSION=$SLURM_VERSION
     environment:
       REAXPRO_WORKER_NAME: simphony-catalyticfoam
