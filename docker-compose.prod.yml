@@ -2,11 +2,11 @@ version: "3"
 
 services:
   fastapi:
-    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:${BUILD_VERSION:-latest}-develop"
+    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:${BUILD_VERSION:-latest}-prod"
     build:
       context: "."
       dockerfile: Dockerfile.api
-      target: develop
+      target: production
       args:
         - INSTALL_SLURM=${INSTALL_SLURM:-no}
         - SLURM_VERSION=$SLURM_VERSION
@@ -29,11 +29,6 @@ services:
       REAXPRO_FASTAPI_PORT: ${REAXPRO_FASTAPI_PORT:-8080}
       PYTHON_BIN: ${PYTHON_BIN:-python3}
       APP_MODE: server
-    volumes:
-      - ./:/app:rw
-    entrypoint:
-      - /bin/bash
-    tty: True
     depends_on:
       - redis
       - minio
@@ -41,11 +36,11 @@ services:
       - reaxpro
 
   headworker:
-    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:${BUILD_VERSION:-latest}-develop"
+    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:${BUILD_VERSION:-latest}-production"
     build:
       context: "."
       dockerfile: Dockerfile.api
-      target: develop
+      target: production
       args:
         - WRAPPER_DEPS_INSTALL=$WRAPPER_DEPS_INSTALL
         - WRAPPER_DEPS_EXTRA=$WRAPPER_DEPS_EXTRA
@@ -65,11 +60,6 @@ services:
       REAXPRO_WORKER_CONCURRENCY: ${REAXPRO_WORKER_CONCURRENCY:-5}
       PYTHON_BIN: ${PYTHON_BIN:-python3}
       APP_MODE: worker
-    volumes:
-      - ./:/app:rw
-    entrypoint:
-      - /bin/bash
-    tty: True
     depends_on:
       - redis
       - minio
@@ -77,15 +67,15 @@ services:
       - reaxpro
 
   catalyticfoam:
-    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:catalyticfoam-${BUILD_VERSION:-latest}-develop"
+    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:catalyticfoam-${BUILD_VERSION:-latest}-production"
     build:
       context: "."
-      target: develop
+      target: production
       dockerfile: Dockerfile.catalyticfoam
       args:
         - BASE_IMAGE=$BASE_IMAGE
         - WRAPPER_TAG=$WRAPPER_TAG
-        - INSTALL_SLURM=${INSTALL_SLURM:-no}
+        - INSTALL_SLURM=${INSTALL_SLURM:-no}        
         - SLURM_VERSION=$SLURM_VERSION
     environment:
       REAXPRO_WORKER_NAME: simphony-catalyticfoam
@@ -101,11 +91,6 @@ services:
       REAXPRO_WORKER_CONCURRENCY: ${REAXPRO_WORKER_CONCURRENCY:-5}
       PYTHON_BIN: ${PYTHON_BIN:-python3}
       APP_MODE: worker
-    volumes:
-      - ./:/app:rw
-    entrypoint:
-      - /bin/bash
-    tty: True
     depends_on:
       - redis
       - minio

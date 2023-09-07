@@ -2,15 +2,15 @@ version: "3"
 
 services:
   reaxpro:
-    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:${BUILD_VERSION:-latest}-singularity-${DOCKER_BUILD_TARGET:-develop}"
+    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:${BUILD_VERSION:-latest}-singularity-production"
     build:
       context: "."
       dockerfile: Dockerfile.singularity
-      target: "${DOCKER_BUILD_TARGET:-develop}"
+      target: "production"
       args:
         - BASE_IMAGE=$BASE_IMAGE
         - WRAPPER_TAG=$WRAPPER_TAG
-        - INSTALL_SLURM=$INSTALL_SLURM
+        - INSTALL_SLURM=${INSTALL_SLURM:-no}
         - SLURM_VERSION=$SLURM_VERSION
     ports:
       - "${REAXPRO_FASTAPI_PORT:-8081}:${REAXPRO_FASTAPI_PORT:-8081}"

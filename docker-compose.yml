@@ -2,7 +2,7 @@ version: "3"
 
 services:
   fastapi:
-    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:${BUILD_VERSION:-latest}"
+    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:${BUILD_VERSION:-latest}-production"
     ports:
       - "${REAXPRO_FASTAPI_PORT:-8080}:8080"
     environment:
@@ -26,7 +26,7 @@ services:
       - reaxpro
 
   headworker:
-    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:${BUILD_VERSION:-latest}"
+    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:${BUILD_VERSION:-latest}-production"
     environment:
       REAXPRO_WORKER_NAME: simphony-workflows
       REAXPRO_REDIS_TYPE: redis
@@ -47,7 +47,7 @@ services:
       - reaxpro
 
   catalyticfoam:
-    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:catalyticfoam-${BUILD_VERSION:-latest}"
+    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:catalyticfoam-${BUILD_VERSION:-latest}-production"
     environment:
       REAXPRO_WORKER_NAME: simphony-catalyticfoam
       REAXPRO_WRAPPER_NAME: osp.wrappers.simcatalyticfoam.simcatalyticfoam:SimCatalyticFoamSession
@@ -68,7 +68,7 @@ services:
       - reaxpro
 
   ams:
-    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:${BUILD_VERSION:-latest}"
+    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:${BUILD_VERSION:-latest}-production"
     environment:
       REAXPRO_WORKER_NAME: simphony-ams
       REAXPRO_WRAPPER_NAME: osp.wrappers.simams.simams_session:SimamsSession
@@ -100,7 +100,7 @@ services:
       - reaxpro
 
   zacros:
-    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:${BUILD_VERSION:-latest}"
+    image: "registry.gitlab.cc-asp.fraunhofer.de/reaxpro/fastapi-celery:${BUILD_VERSION:-latest}-production"
     environment:
       REAXPRO_WORKER_NAME: simphony-zacros
       REAXPRO_WRAPPER_NAME: osp.wrappers.simzacros.simzacros_session:SimzacrosSession
