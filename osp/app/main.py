@@ -1,10 +1,12 @@
 """Main FastAPI-middleware for running remote celery tasks"""
 import logging
+import os
 from datetime import datetime
 from typing import Annotated, Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import pkg_resources
+import uvicorn
 from celery import Celery
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Response
 from fastapi.openapi.utils import get_openapi
@@ -360,3 +362,9 @@ async def on_shutdown() -> None:
     """Define functions for app during shutdown"""
     await redis_plugin.terminate()
     await config_plugin.terminate()
+
+
+if __name__ == "__main__":
+    host = os.environ["REAXPRO_FASTAPI_HOST"]
+    port = int(os.environ["REAXPRO_FASTAPI_PORT"])
+    uvicorn.run(app, host=host, port=port, log_level="debug")
