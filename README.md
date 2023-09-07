@@ -5,6 +5,7 @@ A simple [FastAPI-framework](https://fastapi.tiangolo.com/) for running asynchro
 ## Authors
 
 [Matthias Büschelberger](mailto:matthias.bueschelberger@iwm.fraunhofer.de) (Fraunhofer Institute for Mechanics of Materials IWM)
+[Kiran Kumaraswamy](mailto:kiran.kumaraswamy@iwm.fraunhofer.de) (Fraunhofer Institute for Mechanics of Materials IWM)
 
 ## Documentation
 
