@@ -1,7 +1,8 @@
 """Main FastAPI-middleware for running remote celery tasks"""
 import logging
 import os
-from typing import Any, Dict, List, Union
+from datetime import datetime
+from typing import Annotated, Any, Dict, List, Optional, Union
 from uuid import UUID
 
 import pkg_resources
@@ -9,7 +10,9 @@ import uvicorn
 from celery import Celery
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Response
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+
+# from fastapi.responses import StreamingResponse
 from fastapi_plugins import (
     config_plugin,
     get_config,
@@ -30,12 +33,14 @@ from .dependencies import (
     depends_modellist,
     depends_registry,
     depends_upload,
+    depends_upload_enabled,
     get_app,
     get_appconfig,
     get_dependencies,
     get_models,
 )
 from .models import (
+    InfoType,
     RegisteredModels,
     RegisteredTaskModel,
     SubmissionBody,
@@ -43,7 +48,10 @@ from .models import (
     TaskKillModel,
     TaskResultModel,
     TaskStatusModel,
+    TransformationStatus,
     UploadDataResponse,
+    UploadNotEnabledError,
+    task_to_transformation_map,
 )
 
 logger = logging.getLogger(__name__)
@@ -93,26 +101,34 @@ async def root():
     return RedirectResponse(url="/docs")
 
 
-@app.post("/cache/upload", operation_id="uploadDataCache")
+@app.put("/data/cache", operation_id="createDataset")
 async def upload_data(
     object_key: UUID = Depends(depends_upload),
+    upload_enabled: bool = Depends(depends_upload_enabled),
 ) -> UploadDataResponse:
     """Upload data from internal cache"""
-    return UploadDataResponse(cache_id=object_key)
+    if not upload_enabled:
+        raise UploadNotEnabledError("Direct upload to cache is not enabled")
+    return UploadDataResponse(id=object_key, last_modified=str(datetime.now()))
 
 
-@app.get("/cache/download/{uuid}", operation_id="downloadDataCache")
+@app.get("/data/cache/{dataset_name}", operation_id="getDataset")
 async def download_data(
-    uuid: str = Query(..., title="Cache ID received after the upload."),
+    dataset_name: str,
     response=Depends(depends_download),
-) -> StreamingResponse:
+) -> Response:
     """Download file via StreamingResponse"""
-    filename = uuid + response.headers.get("x-amz-meta-suffix")
-    return StreamingResponse(
-        iter(response.readlines()),
-        media_type="multipart/form-data",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
+    filename = str(dataset_name) + response.headers.get("x-amz-meta-suffix")
+    # return StreamingResponse(
+    #     iter(response.readlines()),
+    #     media_type="multipart/form-data",
+    #     headers={"Content-Disposition": f"attachment; filename={filename}"},
+    # )
+    response = Response(response.data)
+    # Set the appropriate headers
+    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response.headers["Content-Type"] = "application/octet-stream"
+    return response
 
 
 @app.get("/workers/registered")
@@ -128,7 +144,7 @@ async def get_workers_available(
     )
 
 
-@app.get("/models/registered")
+@app.get("/models", operation_id="getModels")
 async def get_model_available(
     registry: List[str] = Depends(depends_modellist),
 ) -> RegisteredModels:
@@ -141,69 +157,106 @@ async def get_model_available(
     )
 
 
-@app.get("/models/get_schema/{modelname}")
-async def get_schema(
-    modelname: str = Query(..., title="Name of the data model to be instanciated."),
-    models=Depends(get_models),
-) -> Dict[Any, Any]:
-    """Create a semantic model registered in the app."""
-    model = models.get(modelname)
-    return schema([model])
-
-
-@app.get("/models/get_example/{modelname}")
-async def get_example(
-    modelname: str = Query(
-        ..., title="Name of the data model for which an example should be retrieved."
+@app.get("/info", operation_id="getInfo")
+async def get_info(
+    info_type: InfoType = Query(
+        ..., title="Type of info to be retrieved. schema or example"
     ),
-    models=Depends(get_models),
-) -> JSONResponse:
-    """Retrieve an example for a model registered in the app."""
-    model = models.get(modelname)
-    return JSONResponse(model.Config.schema_extra["example"])
+    model_name: Optional[str] = Query(
+        ...,
+        enum=depends_modellist(),
+        title="Name of the data model for which info should be retrieved.",
+    ),
+) -> Union[Dict[Any, Any], Any]:
+    """Get specific app info"""
+    if info_type == InfoType.SCHEMA:
+        # Retreive schema of a model registered in the app
+        models = get_models()
+        model = models.get(model_name)
+        response = schema([model])
+    elif info_type == InfoType.EXAMPLE:
+        # Retrieve an example for a model registered in the app
+        models = get_models()
+        model = models.get(model_name)
+        response = JSONResponse(model.Config.schema_extra["example"])
+    return response
 
 
-@app.post("/models/create/{modelname}")
+@app.post("/transformations", operation_id="newTransformation")
 async def create_model(
-    modelname: str = Query(..., title="Name of the data model to be instanciated."),
+    model_name: str = Query(
+        ...,
+        enum=depends_modellist(),
+        title="Name of the data model to be instanciated.",
+    ),
     body=Body(..., media_type="application/json"),
     models=Depends(get_models),
 ) -> TaskCreateModel:
-    """Create a semantic model regisered in the app."""
-    model = models.get(modelname)
+    """Initialize transformation with respect to a certain model."""
+    if "parameters" in body:
+        body = body["parameters"]
+    # Create a semantic model regisered in the app
+    model = models.get(model_name)
     instance = model(**body)
-    return TaskCreateModel(cache_id=instance.uuid)
+    return TaskCreateModel(id=instance.uuid)
 
 
-@app.post("/task/send")
-async def send_task(
-    request: SubmissionBody,
+@app.patch("/transformations/{transformation_id}", operation_id="updateTransformation")
+async def update_task(
+    transformation_id: str,
+    body: Annotated[
+        SubmissionBody,
+        Body(),
+    ],
     celery_app: "Celery" = Depends(get_app),
     settings: AppConfig = Depends(get_appconfig),
 ) -> TaskStatusModel:
-    """Send a task to a remote celery worker"""
-    task = celery_app.send_task(
-        settings.worker_name,
-        kwargs={"cache_key": request.cache_id, "store_tarball": False},
-        queue=settings.worker_name,
-    )
-    return TaskStatusModel(
-        **{
-            "status": task.status,
-            "state": task.state,
-            "result": task.result,
-            "traceback": task.traceback,
-            "task_id": task.id,
-            "args": task.args,
-            "kwargs": task.kwargs,
-            "date_done": task.date_done,
-        }
-    )
+    """Get status of the transformation."""
+    state = body.state
+    if state == TransformationStatus.RUNNING:
+        # Send a task to a remote celery worker
+        task = celery_app.send_task(
+            settings.worker_name,
+            kwargs={"cache_key": transformation_id, "store_tarball": False},
+            queue=settings.worker_name,
+        )
+        response = TaskStatusModel(
+            status=task.status,
+            state=task_to_transformation_map[task.state],
+            result=task.result,
+            traceback=task.traceback,
+            id=task.id,
+            args=task.args,
+            kwargs=task.kwargs,
+            date_done=task.date_done,
+        )
+    elif state == TransformationStatus.STOPPED:
+        # Kill a submitted task with certain id
+        task = celery_app.AsyncResult(transformation_id)
+        if not task.date_done:
+            task.revoke(terminate=True)
+            message = "Killing scheduled."
+        else:
+            message = "Task already terminated."
+        response = TaskKillModel(
+            message=message,
+            status=task.status,
+            state=task_to_transformation_map[task.state],
+            result=task.result,
+            traceback=task.traceback,
+            id=task.id,
+            args=task.args,
+            kwargs=task.kwargs,
+            date_done=task.date_done,
+        )
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown task status: {state}")
+    return response
 
 
-@app.get("/task/log/{task_id}")
-def get_task_logs(
-    task_id: str = Query(  # pylint: disable=unused-argument
+@app.get("/logs", operation_id="getLogs")
+def get_logs(
+    transformation_id: str = Query(  # pylint: disable=unused-argument
         ..., title="task id of the submitted job"
     ),
     response: HTTPResponse = Depends(depends_logs),
@@ -212,69 +265,40 @@ def get_task_logs(
     return Response(content=response.data, media_type="text/plain")
 
 
-@app.get("/task/kill/{task_id}")
-async def kill_task(
-    task_id: str = Query(..., title="task id of the submitted job"),
-    celery_app: "Celery" = Depends(get_app),
-) -> TaskKillModel:
-    """Kill a submitted task with certain id"""
-    task = celery_app.AsyncResult(task_id)
-    if not task.date_done:
-        task.revoke(terminate=True)
-        message = "Killing scheduled."
-    else:
-        message = "Task already terminated."
-    return TaskKillModel(
-        **{
-            "message": message,
-            "status": task.status,
-            "state": task.state,
-            "result": task.result,
-            "traceback": task.traceback,
-            "task_id": task.id,
-            "args": task.args,
-            "kwargs": task.kwargs,
-            "date_done": task.date_done,
-        }
-    )
-
-
-@app.get("/task/status/{task_id}")
+@app.get(
+    "/transformations/{transformation_id}/state", operation_id="getTransformationState"
+)
 async def get_status(
-    task_id: str = Query(..., title="task id of the job to be killed"),
+    transformation_id: str = Query(..., title="task id of the job to be killed"),
     celery_app: "Celery" = Depends(get_app),
 ) -> TaskStatusModel:
     """Fetch the status of a submitted task with certain id"""
-    task = celery_app.AsyncResult(task_id)
+    task = celery_app.AsyncResult(transformation_id)
     return TaskStatusModel(
-        **{
-            "status": task.status,
-            "state": task.state,
-            "traceback": task.traceback,
-            "task_id": task.id,
-            "args": task.args,
-            "kwargs": task.kwargs,
-            "date_done": task.date_done,
-        }
+        status=task.status,
+        state=task_to_transformation_map[task.state],
+        traceback=task.traceback,
+        id=task.id,
+        args=task.args,
+        kwargs=task.kwargs,
+        date_done=task.date_done,
     )
 
 
-@app.get("/task/result/{task_id}")
+@app.get("/transformations/{transformation_id}", operation_id="getTransformation")
 async def get_result(
-    task_id: str = Query(..., title="task id of the submitted job"),
+    transformation_id: str = Query(..., title="task id of the submitted job"),
     celery_app: "Celery" = Depends(get_app),
 ) -> TaskResultModel:
     """Return the results for submitted task with a certain id"""
-    result = celery_app.AsyncResult(task_id)
+    result = celery_app.AsyncResult(transformation_id)
     if not result.ready():
         raise HTTPException(status_code=400, detail="Task is not ready yet.")
     return TaskResultModel(
-        **{
-            "result": result.result,
-            "task_id": task_id,
-            "traceback": result.traceback,
-            "date_done": result.date_done,
-        }
+        parameters=result.result,
+        id=transformation_id,
+        traceback=result.traceback,
+        date_done=result.date_done,
     )
 
 
@@ -302,6 +326,17 @@ async def download_error_handler(request, exc):  # pylint: disable=unused-argume
     """Return response based on the MinioDownloadError"""
     # Raise an HTTPException with a 422 status code and the error messages
     return JSONResponse(status_code=422, content="Error while fetching the resource")
+
+
+@app.exception_handler(UploadNotEnabledError)
+async def upload_error_handler(request, exc):  # pylint: disable=unused-argument
+    """Return response based on the MinioDownloadError"""
+    # Raise an HTTPException with a 422 status code and the error messages
+    return JSONResponse(
+        status_code=403,
+        content="""Direct upload to cache is not enabled.
+    Please contact an administrator.""",
+    )
 
 
 # @app.exception_handler(MinioConnectionError)
